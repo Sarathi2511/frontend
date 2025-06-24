@@ -2,7 +2,7 @@ import { Order, OrderStatus, Product, User } from './types';
 
 // API URL setup
 // Use environment variable or fallback to localhost
-const API_URL = "https://backend-sarathi-qosp.onrender.com/api";
+const API_URL = "https://backend-fov9.onrender.com/api";
 // const API_URL = "http://localhost:5000/api";
 
 console.log('API URL configured as:', API_URL);
