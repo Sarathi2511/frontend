@@ -392,7 +392,7 @@ export default function Analytics() {
                     ) : (
                       <div className="space-y-6">
                         <div className={cn("h-[300px]", isMobile && "h-[200px]")}>
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height="100%" debounce={50}>
                             <BarChart
                               data={executiveAnalytics.ordersByExecutive}
                               margin={{
@@ -405,10 +405,18 @@ export default function Analytics() {
                               <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
                               <XAxis 
                                 dataKey="name" 
-                                tick={{ fontSize: isSmallMobile ? 10 : 12 }}
+                                tick={{ fontSize: isSmallMobile ? 9 : 11 }}
                                 angle={-45}
                                 textAnchor="end"
                                 height={70}
+                                tickFormatter={(value) => {
+                                  // Truncate long executive names
+                                  const maxLength = isSmallMobile ? 8 : 12;
+                                  if (value.length > maxLength) {
+                                    return `${value.substring(0, maxLength-2)}...`;
+                                  }
+                                  return value;
+                                }}
                               />
                               <YAxis 
                                 yAxisId="revenue"
@@ -461,14 +469,20 @@ export default function Analytics() {
                       </div>
                     ) : (
                       <div className={cn("h-[300px]", isMobile && "h-[250px]")}>
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" debounce={50}>
                           <PieChart>
                             <Pie
                               data={executiveAnalytics.ordersByExecutive}
                               cx="50%"
                               cy="50%"
                               labelLine={true}
-                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                              label={({ name, percent }) => {
+                                // Truncate long executive names in pie chart labels
+                                const maxLength = isSmallMobile ? 6 : 10;
+                                const displayName = name.length > maxLength ? 
+                                  `${name.substring(0, maxLength-2)}...` : name;
+                                return `${displayName}: ${(percent * 100).toFixed(0)}%`;
+                              }}
                               outerRadius={80}
                               fill="#8884d8"
                               dataKey="revenue"
@@ -528,9 +542,9 @@ export default function Analytics() {
                     </div>
                   ) : (
                     <div className={cn("h-[350px]", isMobile && "h-[280px]")}>
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" debounce={50}>
                         <BarChart
-                          data={executiveAnalytics.popularProducts.slice(0, 8)}
+                          data={executiveAnalytics.popularProducts.slice(0, isSmallMobile ? 4 : (isMobile ? 6 : 8))}
                           layout="vertical"
                           margin={{
                             top: 5,
@@ -548,11 +562,13 @@ export default function Analytics() {
                           <YAxis 
                             type="category" 
                             dataKey="name" 
-                            tick={{ fontSize: isSmallMobile ? 10 : 12 }}
-                            width={90}
+                            tick={{ fontSize: isSmallMobile ? 9 : 11 }}
+                            width={isSmallMobile ? 90 : 120}
                             tickFormatter={(value) => {
-                              if (value.length > 15) {
-                                return `${value.substring(0, 13)}...`;
+                              // More aggressive truncation based on device size
+                              const maxLength = isSmallMobile ? 8 : 15;
+                              if (value.length > maxLength) {
+                                return `${value.substring(0, maxLength-2)}...`;
                               }
                               return value;
                             }}
@@ -659,7 +675,7 @@ const GeneralAnalyticsContent = ({
         </CardHeader>
         <CardContent className={cn(isSmallMobile && "p-3")}>
           <div className={cn("h-[300px]", isMobile && "h-[200px]")}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" debounce={50}>
               <LineChart
                 data={salesByPeriod}
                 margin={{
@@ -679,7 +695,9 @@ const GeneralAnalyticsContent = ({
                       day: 'numeric' 
                     });
                   }}
-                  tick={{ fontSize: isSmallMobile ? 10 : 12 }}
+                  tick={{ fontSize: isSmallMobile ? 9 : 11 }}
+                  height={50}
+                  interval={isSmallMobile ? 1 : 0} // Skip some ticks on small mobile screens
                 />
                 <YAxis 
                   tickFormatter={(value) => isSmallMobile ? `₹${value/1000}k` : `₹${value}`}
@@ -712,9 +730,9 @@ const GeneralAnalyticsContent = ({
         </CardHeader>
         <CardContent className={cn(isSmallMobile && "p-3")}>
           <div className={cn("h-[300px]", isMobile && "h-[250px]")}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" debounce={50}>
               <BarChart
-                data={salesByProduct.slice(0, isSmallMobile ? 5 : 7)}
+                data={salesByProduct.slice(0, isSmallMobile ? 4 : (isMobile ? 5 : 7))}
                 layout="vertical"
                 margin={{
                   top: 5,
@@ -732,10 +750,13 @@ const GeneralAnalyticsContent = ({
                 <YAxis 
                   type="category" 
                   dataKey="name" 
-                  tick={{ fontSize: isSmallMobile ? 10 : 12 }}
+                  tick={{ fontSize: isSmallMobile ? 9 : 11 }}
+                  width={isSmallMobile ? 90 : 120}
                   tickFormatter={(value) => {
-                    if (isSmallMobile && value.length > 10) {
-                      return `${value.substring(0, 8)}...`;
+                    // More aggressive truncation based on device size
+                    const maxLength = isSmallMobile ? 8 : 15;
+                    if (value.length > maxLength) {
+                      return `${value.substring(0, maxLength-2)}...`;
                     }
                     return value;
                   }}
