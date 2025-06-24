@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 
 interface EmptyOrdersStateProps {
   searchTerm: string;
+  onCreateOrder?: () => void;
 }
 
-export function EmptyOrdersState({ searchTerm }: EmptyOrdersStateProps) {
+export function EmptyOrdersState({ searchTerm, onCreateOrder }: EmptyOrdersStateProps) {
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center">
       {searchTerm ? (
@@ -24,7 +25,7 @@ export function EmptyOrdersState({ searchTerm }: EmptyOrdersStateProps) {
           <p className="text-sm text-muted-foreground mb-4">
             Get started by creating your first order.
           </p>
-          <Button>Create Order</Button>
+          <Button onClick={onCreateOrder}>Create Order</Button>
         </>
       )}
     </div>
