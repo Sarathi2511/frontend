@@ -13,7 +13,7 @@ import Staff from "@/pages/Staff";
 import Analytics from "@/pages/Analytics";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
-// Notification system removed as per requirements
+import { Toaster as SonnerToaster } from "sonner";
 import { ScrollManager } from '@/components/layout/ScrollManager';
 
 const queryClient = new QueryClient();
@@ -29,7 +29,7 @@ const App = () => (
     <TooltipProvider>
       <ScrollManager />
       <Toaster />
-      {/* Removed Sonner component */}
+      <SonnerToaster position="top-right" closeButton richColors />
       <BrowserRouter>
         <AuthProvider>
           <Routes>
