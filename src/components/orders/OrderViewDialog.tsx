@@ -33,13 +33,14 @@ import { Trash, Clipboard, Printer, Pencil, Calendar, CircleDollarSign, FileText
 import { cn, generateOrderPDF } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
+import { PaymentMarkDialog } from '@/components/orders/PaymentMarkDialog';
 
 interface OrderViewDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   order: Order | null;
   onStatusChange: (orderId: string, status: OrderStatus) => void;
-  onMarkPaid?: (orderId: string) => void;
+  onMarkPaid?: (orderId: string, paidBy?: string, paymentReceivedBy?: string) => Promise<void>;
   onEditOrder?: (order: Order) => void;
   onDeleteOrder?: (order: Order) => void;
   formatCurrency: (value: number) => string;
@@ -57,6 +58,7 @@ export function OrderViewDialog({
 }: OrderViewDialogProps) {
   const [staffMembers, setStaffMembers] = useState<any[]>([]);
   const [deliveryStaff, setDeliveryStaff] = useState<any>(null);
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const { user, isAdmin, isExecutive } = useAuth();
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -205,7 +207,7 @@ export function OrderViewDialog({
                     variant="outline" 
                     className="w-full"
                     onClick={() => {
-                      onMarkPaid(getOrderId(order));
+                      setIsPaymentDialogOpen(true);
                     }}
                   >
                     Mark as Paid
@@ -270,8 +272,7 @@ export function OrderViewDialog({
                 <PaymentStatusBadge 
                   order={order} 
                   onClick={onMarkPaid && order.isPaid === false ? () => {
-                    onMarkPaid(getOrderId(order));
-                    onOpenChange(false);
+                    setIsPaymentDialogOpen(true);
                   } : undefined}
                 />
               </p>
@@ -309,6 +310,30 @@ export function OrderViewDialog({
                 <p className={cn("font-medium", isMobile ? "text-xs" : "text-sm")}>Payment Date</p>
                 <p className={cn("text-muted-foreground", isMobile ? "text-xs" : "text-sm")}>
                   {format(new Date(order.paidAt.toString()), 'MMM dd, yyyy')}
+                </p>
+              </div>
+            )}
+            {order.createdBy && (
+              <div>
+                <p className={cn("font-medium", isMobile ? "text-xs" : "text-sm")}>Created By</p>
+                <p className={cn("text-muted-foreground", isMobile ? "text-xs" : "text-sm")}>
+                  {staffMembers.find(staff => staff._id === order.createdBy || staff.id === order.createdBy)?.name || 'Unknown'}
+                </p>
+              </div>
+            )}
+            {order.paidBy && (
+              <div>
+                <p className={cn("font-medium", isMobile ? "text-xs" : "text-sm")}>Marked Paid By</p>
+                <p className={cn("text-muted-foreground", isMobile ? "text-xs" : "text-sm")}>
+                  {staffMembers.find(staff => staff._id === order.paidBy || staff.id === order.paidBy)?.name || 'Unknown'}
+                </p>
+              </div>
+            )}
+            {order.paymentReceivedBy && (
+              <div>
+                <p className={cn("font-medium", isMobile ? "text-xs" : "text-sm")}>Payment Received By</p>
+                <p className={cn("text-muted-foreground", isMobile ? "text-xs" : "text-sm")}>
+                  {staffMembers.find(staff => staff._id === order.paymentReceivedBy || staff.id === order.paymentReceivedBy)?.name || 'Unknown'}
                 </p>
               </div>
             )}
@@ -445,6 +470,19 @@ export function OrderViewDialog({
           </div>
         </DialogFooter>
       </DialogContent>
+      
+      {/* Payment Mark Dialog */}
+      {onMarkPaid && order && (
+        <PaymentMarkDialog
+          isOpen={isPaymentDialogOpen}
+          onOpenChange={setIsPaymentDialogOpen}
+          order={order}
+          onMarkPaid={async (orderId, paidBy, paymentReceivedBy) => {
+            await onMarkPaid(orderId, paidBy, paymentReceivedBy);
+          }}
+          formatCurrency={formatCurrency}
+        />
+      )}
     </Dialog>
   );
 }

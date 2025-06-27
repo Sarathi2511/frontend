@@ -551,7 +551,7 @@ export const updateOrderWithImage = async (id: string, formData: FormData) => {
   return response.json();
 };
 
-export const markOrderAsPaid = async (id: string) => {
+export const markOrderAsPaid = async (id: string, paidBy?: string, paymentReceivedBy?: string) => {
   const token = localStorage.getItem('token');
   const response = await fetch(`${API_URL}/orders/${id}/paid`, {
     method: 'PUT',
@@ -561,7 +561,9 @@ export const markOrderAsPaid = async (id: string) => {
     },
     body: JSON.stringify({ 
       isPaid: true, 
-      paidAt: new Date() 
+      paidAt: new Date(),
+      paidBy,
+      paymentReceivedBy
     }),
   });
 
@@ -785,4 +787,4 @@ export const assignDeliveryPerson = async (orderId: string, deliveryPersonId: st
   }
 
   return response.json();
-}; 
+};

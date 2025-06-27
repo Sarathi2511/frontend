@@ -8,7 +8,7 @@ import { OrdersTable } from '@/components/orders/OrdersTable';
 import { EmptyOrdersState } from '@/components/orders/EmptyOrdersState';
 import { OrderViewDialog } from '@/components/orders/OrderViewDialog';
 import { DeleteOrderDialog } from '@/components/orders/DeleteOrderDialog';
-import { MarkPaidDialog } from '@/components/orders/MarkPaidDialog';
+import { PaymentMarkDialog } from '@/components/orders/PaymentMarkDialog';
 import { DeliveryAssignDialog } from '@/components/orders/DeliveryAssignDialog';
 import { Order, OrderStatus } from '@/lib/types';
 import OrderForm from '@/components/forms/OrderForm';
@@ -253,11 +253,11 @@ export default function Orders() {
     }
   }, [orders]);
 
-  const handleMarkPaid = useCallback(async (orderId: string) => {
+  const handleMarkPaid = useCallback(async (orderId: string, paidBy?: string, paymentReceivedBy?: string) => {
     setIsUpdateLoading(true);
     
     try {
-      const updatedOrder = await markOrderAsPaid(orderId);
+      const updatedOrder = await markOrderAsPaid(orderId, paidBy, paymentReceivedBy);
       
       setOrders(
         orders.map(order => (order._id === orderId ? updatedOrder : order))
@@ -490,7 +490,7 @@ export default function Orders() {
         onDelete={handleDeleteOrder}
       />
 
-      <MarkPaidDialog
+      <PaymentMarkDialog
         isOpen={isMarkPaidDialogOpen}
         onOpenChange={setIsMarkPaidDialogOpen}
         order={selectedOrder}
