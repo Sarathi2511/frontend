@@ -4,6 +4,7 @@ import { Package, Edit, Eye, Trash } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Product {
   id?: string;
@@ -28,6 +29,7 @@ export function ProductCard({
   onDelete,
   className
 }: ProductCardProps) {
+  const { user } = useAuth();
   return (
     <Card className={cn("overflow-hidden group transition-all hover:border-primary", className)}>
       <div 
@@ -67,16 +69,18 @@ export function ProductCard({
           <Edit className="h-4 w-4 mr-2" />
           Edit
         </Button>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-          onClick={onDelete}
-        >
-          <Trash className="h-4 w-4 mr-2" />
-          Delete
-        </Button>
+        {user?.role !== 'staff' && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={onDelete}
+          >
+            <Trash className="h-4 w-4 mr-2" />
+            Delete
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );
-} 
+}

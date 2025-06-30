@@ -300,13 +300,19 @@ export default function Products() {
       e.stopPropagation();
     }
     
+    // Check if user is a staff member (not admin or executive)
+    if (user?.role === 'staff') {
+      toast.error('You are not authorized to delete products');
+      return;
+    }
+    
     // Immediately make a deep copy of the product
     const productData = JSON.parse(JSON.stringify(product));
     
     // Set product to delete and open dialog in single update
     setProductToDelete(productData);
     setIsDeleteDialogOpen(true);
-  }, []);
+  }, [user]);
 
   // Handle product deletion with better error handling
   const handleDeleteProduct = useCallback(async (productId: string): Promise<void> => {

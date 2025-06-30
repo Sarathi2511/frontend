@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, Upload, Search } from 'lucide-react';
+import { Loader2, Plus, Trash2, Upload, Search, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -33,13 +34,25 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Label } from '@/components/ui/label';
 
-import { Order, OrderStatus, PaymentCondition, Product, OrderItem, User, OrderPriority } from '@/lib/types';
-import { updateOrder, updateOrderWithImage, fetchStaff, fetchProducts, updateProduct } from '@/lib/api';
+import { Order, OrderStatus, PaymentCondition, Product, OrderItem, User, OrderPriority, ProductDimension } from '@/lib/types';
+import { updateOrder, updateOrderWithImage, fetchStaff, fetchProducts, updateProduct, createProduct } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 // Order form schema
 const orderFormSchema = z.object({
@@ -69,14 +82,22 @@ export default function UpdateOrderForm({ order, onSuccess, onCancel }: UpdateOr
   const [orderImage, setOrderImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(order.orderImage || null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<string>('');
-  const [quantity, setQuantity] = useState<string>('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [quantity, setQuantity] = useState<string>('1');
   const [price, setPrice] = useState<string>('');
   const [staffMembers, setStaffMembers] = useState<User[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [productSearch, setProductSearch] = useState('');
   const [showProductResults, setShowProductResults] = useState(false);
+  
+  // Product creation dialog state
+  const [isCreateProductDialogOpen, setIsCreateProductDialogOpen] = useState(false);
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductStock, setNewProductStock] = useState('');
+  const [newProductDimension, setNewProductDimension] = useState<ProductDimension>('Pc');
+  const [newProductThreshold, setNewProductThreshold] = useState('');
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
   
   // Ref for detecting clicks outside the search dropdown
   const searchRef = React.useRef<HTMLDivElement>(null);
@@ -270,10 +291,59 @@ export default function UpdateOrderForm({ order, onSuccess, onCancel }: UpdateOr
 
   // Handle product selection from search results
   const handleSelectProduct = (product: Product) => {
-    setSelectedProduct(product._id || product.id);
+    setSelectedProduct(product);
     setProductSearch(product.name);
     setPrice('');
     setShowProductResults(false);
+  };
+  
+  // Handle creating a new product
+  const handleCreateProduct = async () => {
+    if (!newProductName || !newProductStock) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    setIsCreatingProduct(true);
+    
+    try {
+      // Parse the threshold value as number or undefined if empty
+      const thresholdValue = newProductThreshold ? parseInt(newProductThreshold) : undefined;
+      
+      // Prepare the product data
+      const productData = {
+        name: newProductName,
+        stock: parseInt(newProductStock),
+        dimension: newProductDimension,
+        threshold: thresholdValue,
+      };
+      
+      // Create the product
+      const newProduct = await createProduct(productData);
+      
+      // Add it to the products list
+      setProducts([newProduct, ...products]);
+      
+      // Auto-select the new product
+      setSelectedProduct(newProduct);
+      setProductSearch(newProduct.name);
+      
+      // Reset form fields
+      setNewProductName('');
+      setNewProductStock('');
+      setNewProductDimension('Pc');
+      setNewProductThreshold('');
+      
+      // Close dialog
+      setIsCreateProductDialogOpen(false);
+      
+      toast.success('Product created and added to order');
+    } catch (error) {
+      console.error('Error creating product:', error);
+      toast.error('Failed to create product');
+    } finally {
+      setIsCreatingProduct(false);
+    }
   };
 
   // Add item to order
@@ -282,12 +352,12 @@ export default function UpdateOrderForm({ order, onSuccess, onCancel }: UpdateOr
     const priceValue = parseFloat(price) || 0;
     if (!selectedProduct || quantityValue <= 0 || priceValue <= 0) return;
     
-    const product = products.find(p => (p._id || p.id) === selectedProduct);
-    if (!product) return;
+    // No need to find the product again, we already have it as selectedProduct
+    const productId = selectedProduct._id || selectedProduct.id;
     
     // Check if we already have this product in our items (match by both productId and price)
     const existingItemIndex = orderItems.findIndex(
-      item => item.productId === selectedProduct && item.price === priceValue
+      item => item.productId === productId && item.price === priceValue
     );
     
     if (existingItemIndex >= 0) {
@@ -295,21 +365,23 @@ export default function UpdateOrderForm({ order, onSuccess, onCancel }: UpdateOr
       const updatedItems = [...orderItems];
       updatedItems[existingItemIndex].quantity += quantityValue;
       setOrderItems(updatedItems);
+      toast.success(`Updated quantity for ${selectedProduct.name}`);
     } else {
       // Add new item
       const newItem: OrderItem = {
         id: Math.random().toString(36).substring(2, 9),
-        productId: product._id || product.id,
-        productName: product.name,
+        productId: productId,
+        productName: selectedProduct.name,
         quantity: quantityValue,
         price: priceValue,
-        dimension: product.dimension || 'Pc'
+        dimension: selectedProduct.dimension || 'Pc'
       };
       setOrderItems([...orderItems, newItem]);
+      toast.success(`Added ${selectedProduct.name} to order`);
     }
     
     // Reset selection
-    setSelectedProduct('');
+    setSelectedProduct(null);
     setProductSearch('');
     setQuantity('');
     setPrice('');
@@ -324,6 +396,19 @@ export default function UpdateOrderForm({ order, onSuccess, onCancel }: UpdateOr
       item.id === id ? { ...item, quantity: newQuantity } : item
     );
     setOrderItems(updatedItems);
+    toast.success('Item quantity updated');
+  };
+  
+  // Update item price
+  const handleUpdateItemPrice = (id: string, newPrice: number) => {
+    if (newPrice <= 0) return;
+    
+    const updatedItems = orderItems.map(item => 
+      item.id === id ? { ...item, price: newPrice } : item
+    );
+    
+    setOrderItems(updatedItems);
+    toast.success('Item price updated');
   };
 
   // Remove item from order
@@ -736,7 +821,7 @@ export default function UpdateOrderForm({ order, onSuccess, onCancel }: UpdateOr
                             <TableRow key={item.id}>
                               <TableCell className="max-w-[120px] sm:max-w-none truncate">{item.productName}</TableCell>
                               <TableCell className="text-center">
-                                <Input 
+                                <Input
                                   type="number"
                                   min="1"
                                   value={item.quantity}
@@ -744,7 +829,16 @@ export default function UpdateOrderForm({ order, onSuccess, onCancel }: UpdateOr
                                   className="w-16 h-8 text-center p-1"
                                 />
                               </TableCell>
-                              <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">
+                                <Input
+                                  type="number"
+                                  min="0.01"
+                                  step="0.01"
+                                  value={item.price}
+                                  onChange={(e) => handleUpdateItemPrice(item.id!, parseFloat(e.target.value) || item.price)}
+                                  className="w-20 h-8 text-right"
+                                />
+                              </TableCell>
                               <TableCell className="text-right">₹{(item.price * item.quantity).toFixed(2)}</TableCell>
                               <TableCell className="text-center">{item.dimension || 'Pc'}</TableCell>
                               <TableCell className="text-right p-0 pr-2">
@@ -824,11 +918,39 @@ export default function UpdateOrderForm({ order, onSuccess, onCancel }: UpdateOr
                               <p className="text-sm text-muted-foreground mt-2">Loading products...</p>
                             </div>
                           ) : filteredProducts.length === 0 ? (
-                            <div className="p-4 text-center text-muted-foreground">
-                              No products found
+                            <div className="p-4">
+                              <p className="text-sm text-center text-muted-foreground mb-2">
+                                No products found
+                              </p>
+                              <Button 
+                                onClick={() => {
+                                  setIsCreateProductDialogOpen(true);
+                                  setNewProductName(productSearch);
+                                  setShowProductResults(false);
+                                }}
+                                variant="outline"
+                                className="w-full"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Create "{productSearch}"
+                              </Button>
                             </div>
                           ) : (
                             <div>
+                              <div className="sticky top-0 p-2 bg-background border-b">
+                                <Button 
+                                  onClick={() => {
+                                    setIsCreateProductDialogOpen(true);
+                                    setNewProductName(productSearch);
+                                    setShowProductResults(false);
+                                  }}
+                                  variant="outline"
+                                  className="w-full"
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Create new product
+                                </Button>
+                              </div>
                               {filteredProducts.map((product) => {
                                 // Type assertion for product in the UI
                                 const productWithSku = product as (Product & { sku?: string });
@@ -894,6 +1016,89 @@ export default function UpdateOrderForm({ order, onSuccess, onCancel }: UpdateOr
           </div>
         </form>
       </Form>
+
+      {/* Create Product Dialog */}
+      <Dialog open={isCreateProductDialogOpen} onOpenChange={setIsCreateProductDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Create New Product</DialogTitle>
+            <DialogDescription>
+              Fill in the details for your new product.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="new-product-name">Product Name</Label>
+              <Input
+                id="new-product-name"
+                value={newProductName}
+                onChange={(e) => setNewProductName(e.target.value)}
+                placeholder="Enter product name"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="new-product-stock">Initial Stock</Label>
+              <Input
+                id="new-product-stock"
+                type="number"
+                min="0"
+                value={newProductStock}
+                onChange={(e) => setNewProductStock(e.target.value)}
+                placeholder="Enter initial stock"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="new-product-threshold">Low Stock Threshold</Label>
+              <Input
+                id="new-product-threshold"
+                type="number"
+                min="1"
+                value={newProductThreshold}
+                onChange={(e) => setNewProductThreshold(e.target.value)}
+                placeholder="Enter threshold value"
+              />
+              <p className="text-xs text-muted-foreground">
+                Alert will be shown when stock is below this number
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="new-product-dimension">Unit/Dimension</Label>
+              <Select 
+                value={newProductDimension} 
+                onValueChange={(value) => setNewProductDimension(value as ProductDimension)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a dimension" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Bag">Bag</SelectItem>
+                  <SelectItem value="Bundle">Bundle</SelectItem>
+                  <SelectItem value="Box">Box</SelectItem>
+                  <SelectItem value="Carton">Carton</SelectItem>
+                  <SelectItem value="Coils">Coils</SelectItem>
+                  <SelectItem value="Dozen">Dozen</SelectItem>
+                  <SelectItem value="Ft">Ft</SelectItem>
+                  <SelectItem value="Gross">Gross</SelectItem>
+                  <SelectItem value="Kg">Kg</SelectItem>
+                  <SelectItem value="Mtr">Mtr</SelectItem>
+                  <SelectItem value="Pc">Pc</SelectItem>
+                  <SelectItem value="Pkt">Pkt</SelectItem>
+                  <SelectItem value="Set">Set</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateProductDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateProduct} disabled={isCreatingProduct}>
+              {isCreatingProduct && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Create Product
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
